@@ -9,7 +9,6 @@ import (
 // A struct containing the relevant response information returned by a rek request.
 type Response struct {
 	statusCode int
-	content    []byte
 	headers    map[string]string
 	encoding   []string
 	cookies    []*http.Cookie
@@ -32,17 +31,6 @@ func makeResponse(res *http.Response) (*Response, error) {
 		resp.headers = headers
 	}
 
-	if res.Body != nil {
-		defer res.Body.Close()
-
-		bs, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		resp.content = bs
-	}
-
 	if res.TransferEncoding != nil {
 		resp.encoding = res.TransferEncoding
 	}
@@ -54,14 +42,23 @@ func makeResponse(res *http.Response) (*Response, error) {
 	return resp, nil
 }
 
+func (r *Response) body() ([]byte, error) {
+	return ioutil.ReadAll(r.res.Body)
+}
+
 // The status code of the response (200, 404, etc.)
 func (r *Response) StatusCode() int {
 	return r.statusCode
 }
 
 // The response body as raw bytes.
-func (r *Response) Content() []byte {
-	return r.content
+func (r *Response) Content() ([]byte, error) {
+	b, err := r.body()
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
 
 // The headers associated with the response.
@@ -75,13 +72,23 @@ func (r *Response) Encoding() []string {
 }
 
 // The response body as a string.
-func (r *Response) Text() string {
-	return string(r.content)
+func (r *Response) Text() (string, error) {
+	b, err := r.body()
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 // Marshal a JSON response body.
 func (r *Response) Json(v interface{}) error {
-	return json.Unmarshal(r.content, v)
+	b, err := r.body()
+	if err != nil {
+		return  err
+	}
+
+	return json.Unmarshal(b, v)
 }
 
 // The Content-Type header for the request (if any).
